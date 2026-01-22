@@ -1,0 +1,21 @@
+order_number,customer_code,order_date,total_amount,status,product_category
+ORD-2024-0001,CUST001,2024-01-15,1250.00,delivered,Electronics
+ORD-2024-0002,CUST002,2024-01-16,450.50,delivered,Office Supplies
+ORD-2024-0003,CUST003,2024-01-17,8900.00,delivered,Software
+ORD-2024-0004,CUST001,2024-01-18,320.75,delivered,Office Supplies
+ORD-2024-0005,CUST005,2024-01-19,5600.00,delivered,Hardware
+ORD-2024-0006,CUST007,2024-01-20,12500.00,shipped,Enterprise Software
+ORD-2024-0007,CUST004,2024-01-21,780.00,shipped,Electronics
+ORD-2024-0008,CUST008,2024-01-22,2340.00,shipped,Hardware
+ORD-2024-0009,CUST010,2024-01-23,4500.00,processing,Software
+ORD-2024-0010,CUST006,2024-01-24,1890.50,processing,Office Supplies
+ORD-2024-0011,CUST012,2024-01-25,670.25,processing,Electronics
+ORD-2024-0012,CUST015,2024-01-26,15000.00,confirmed,Enterprise Software
+ORD-2024-0013,CUST009,2024-01-27,890.00,confirmed,Office Supplies
+ORD-2024-0014,CUST011,2024-01-28,1120.00,pending,Hardware
+ORD-2024-0015,CUST014,2024-01-29,2800.00,pending,Electronics
+ORD-2024-0016,CUST016,2024-01-30,3450.00,pending,Software
+ORD-2024-0017,CUST018,2024-01-31,7800.00,pending,Enterprise Software
+ORD-2024-0018,CUST020,2024-02-01,9200.00,pending,Hardware
+ORD-2024-0019,CUST017,2024-02-02,560.00,cancelled,Office Supplies
+ORD-2024-0020,CUST019,2024-02-03,4100.00,pending,Electronics

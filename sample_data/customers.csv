@@ -1,0 +1,21 @@
+customer_code,name,email,phone,country,segment,credit_limit,is_active
+CUST001,John Smith,john.smith@example.com,+1-555-0101,USA,Enterprise,75000,1
+CUST002,Jane Doe,jane.doe@example.com,+1-555-0102,USA,SMB,25000,1
+CUST003,Robert Johnson,robert.j@example.com,+44-20-7946-0958,UK,Enterprise,100000,1
+CUST004,Maria Garcia,maria.garcia@example.com,+34-91-123-4567,Spain,SMB,15000,1
+CUST005,Hans Mueller,hans.mueller@example.com,+49-30-1234567,Germany,Enterprise,80000,1
+CUST006,Pierre Dubois,pierre.dubois@example.com,+33-1-23-45-67-89,France,Mid-Market,45000,1
+CUST007,Yuki Tanaka,yuki.tanaka@example.com,+81-3-1234-5678,Japan,Enterprise,120000,1
+CUST008,Chen Wei,chen.wei@example.com,+86-10-1234-5678,China,Mid-Market,55000,1
+CUST009,Sarah Williams,sarah.w@example.com,+1-555-0109,Canada,SMB,20000,1
+CUST010,Marco Rossi,marco.rossi@example.com,+39-06-1234567,Italy,Enterprise,65000,1
+CUST011,Anna Kowalski,anna.k@example.com,+48-22-123-4567,Poland,SMB,18000,1
+CUST012,James Brown,james.brown@example.com,+61-2-1234-5678,Australia,Mid-Market,40000,1
+CUST013,Elena Petrov,elena.petrov@example.com,+7-495-123-4567,Russia,Enterprise,70000,0
+CUST014,Carlos Silva,carlos.silva@example.com,+55-11-1234-5678,Brazil,SMB,22000,1
+CUST015,Kim Min-jun,kim.minjun@example.com,+82-2-1234-5678,South Korea,Enterprise,90000,1
+CUST016,Ahmed Hassan,ahmed.h@example.com,+20-2-1234-5678,Egypt,Mid-Market,35000,1
+CUST017,Lisa Anderson,lisa.a@example.com,+1-555-0117,USA,SMB,28000,1
+CUST018,Thomas Berg,thomas.berg@example.com,+46-8-123-456,Sweden,Enterprise,85000,1
+CUST019,Nina Johansson,nina.j@example.com,+47-21-12-34-56,Norway,Mid-Market,50000,1
+CUST020,David Lee,david.lee@example.com,+65-6123-4567,Singapore,Enterprise,95000,1

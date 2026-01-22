@@ -1,0 +1,11 @@
+customer_code,name,email,phone,country,segment,credit_limit,is_active
+CUST001,John Smith,john.smith@example.com,+1-555-0101,USA,Enterprise,75000,1
+,Missing Code,missing@example.com,+1-555-0102,USA,SMB,25000,1
+CUST003,,no-name@example.com,+44-20-7946-0958,UK,Enterprise,100000,1
+CUST004,Invalid Email,not-an-email,+34-91-123-4567,Spain,SMB,15000,1
+CUST005,Negative Credit,hans@example.com,+49-30-1234567,Germany,Enterprise,-5000,1
+CUST001,Duplicate Code,duplicate@example.com,+33-1-23-45-67-89,France,Mid-Market,45000,1
+CUST007,Invalid Segment,yuki@example.com,+81-3-1234-5678,Japan,InvalidSegment,120000,1
+CUST008,Valid Customer,valid@example.com,+86-10-1234-5678,China,Mid-Market,55000,1
+CUST009,Missing Email,,+1-555-0109,Canada,SMB,20000,1
+CUST010,Too High Credit,marco@example.com,+39-06-1234567,Italy,Enterprise,999999999,1

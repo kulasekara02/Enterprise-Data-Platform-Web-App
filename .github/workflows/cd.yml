@@ -1,0 +1,241 @@
+name: CD Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'staging' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    environment:
+      name: staging
+      url: https://staging.dataops.example.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_STAGING }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy to Staging
+        run: |
+          # Update image tags
+          export IMAGE_TAG=${{ github.sha }}
+
+          # Apply Kubernetes manifests
+          kubectl apply -f k8s/staging/
+
+          # Update deployments with new image
+          kubectl set image deployment/dataops-api \
+            api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}-api \
+            -n dataops-staging
+
+          kubectl set image deployment/dataops-worker \
+            worker=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}-worker \
+            -n dataops-staging
+
+          # Wait for rollout
+          kubectl rollout status deployment/dataops-api -n dataops-staging --timeout=300s
+          kubectl rollout status deployment/dataops-worker -n dataops-staging --timeout=300s
+
+      - name: Run smoke tests
+        run: |
+          # Wait for service to be ready
+          sleep 30
+
+          # Health check
+          curl -f https://staging.dataops.example.com/health || exit 1
+
+          echo "Smoke tests passed!"
+
+      - name: Notify on success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Staging deployment successful! :rocket:",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Staging Deployment*\nCommit: `${{ github.sha }}`\nEnvironment: staging"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event.inputs.environment == 'production' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    environment:
+      name: production
+      url: https://dataops.example.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+
+      - name: Create database backup
+        run: |
+          # Trigger backup job before deployment
+          kubectl create job --from=cronjob/db-backup db-backup-pre-deploy-$(date +%s) -n dataops-prod || true
+
+      - name: Deploy to Production
+        run: |
+          export IMAGE_TAG=${{ github.sha }}
+
+          # Apply Kubernetes manifests
+          kubectl apply -f k8s/production/
+
+          # Blue-green deployment: scale up new version
+          kubectl set image deployment/dataops-api \
+            api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}-api \
+            -n dataops-prod
+
+          kubectl set image deployment/dataops-worker \
+            worker=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}-worker \
+            -n dataops-prod
+
+          # Wait for rollout
+          kubectl rollout status deployment/dataops-api -n dataops-prod --timeout=600s
+          kubectl rollout status deployment/dataops-worker -n dataops-prod --timeout=600s
+
+      - name: Verify deployment
+        run: |
+          # Health check
+          for i in {1..5}; do
+            if curl -f https://dataops.example.com/health; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Health check failed!"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, initiating rollback..."
+          kubectl rollout undo deployment/dataops-api -n dataops-prod
+          kubectl rollout undo deployment/dataops-worker -n dataops-prod
+
+      - name: Notify on success
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Production deployment successful! :tada:",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment*\nVersion: `${{ github.ref_name }}`\nCommit: `${{ github.sha }}`"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Production deployment FAILED! :x:",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment Failed*\nVersion: `${{ github.ref_name }}`\nRollback initiated."
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+          fi
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            ## Changes
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Docker Images
+
+            - API: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-api`
+            - Worker: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-worker`
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
