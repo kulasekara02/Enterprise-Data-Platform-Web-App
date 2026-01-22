@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <h1 class="text-2xl font-bold text-gray-800">Upload Data File</h1>
+
+    <!-- Upload Form -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <form id="uploadForm" enctype="multipart/form-data" class="space-y-6">
+            <!-- Drag & Drop Zone -->
+            <div id="dropZone"
+                 class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-blue-500 transition-colors cursor-pointer">
+                <input type="file" id="fileInput" name="file" class="hidden"
+                       accept=".csv,.xlsx,.xls,.json">
+
+                <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+
+                <p class="mt-4 text-lg text-gray-600">
+                    <span class="text-blue-600 hover:text-blue-700 font-medium">Click to upload</span>
+                    or drag and drop
+                </p>
+                <p class="mt-2 text-sm text-gray-500">CSV, Excel, or JSON files up to 100MB</p>
+            </div>
+
+            <!-- Selected File Info -->
+            <div id="fileInfo" class="hidden bg-gray-50 rounded-lg p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <svg class="h-8 w-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <div>
+                            <p id="fileName" class="font-medium text-gray-800"></p>
+                            <p id="fileSize" class="text-sm text-gray-500"></p>
+                        </div>
+                    </div>
+                    <button type="button" id="removeFile" class="text-red-600 hover:text-red-800">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Data Type Selection -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Data Type</label>
+                <select id="dataType" name="data_type"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <option value="auto">Auto-detect</option>
+                    <option value="customers">Customers</option>
+                    <option value="orders">Orders</option>
+                    <option value="products">Products</option>
+                    <option value="generic">Generic Data</option>
+                </select>
+            </div>
+
+            <!-- Options -->
+            <div class="space-y-3">
+                <label class="flex items-center">
+                    <input type="checkbox" id="validateOnly" name="validate_only"
+                           class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                    <span class="ml-2 text-sm text-gray-700">Validate only (don't load to database)</span>
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" id="skipDuplicates" name="skip_duplicates" checked
+                           class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                    <span class="ml-2 text-sm text-gray-700">Skip duplicate records</span>
+                </label>
+            </div>
+
+            <!-- Upload Button -->
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="previewBtn"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                        disabled>
+                    Preview
+                </button>
+                <button type="submit" id="uploadBtn"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center"
+                        disabled>
+                    <span id="uploadBtnText">Upload & Process</span>
+                    <svg id="uploadSpinner" class="hidden ml-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Progress Section -->
+    <div id="progressSection" class="hidden bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">Processing Progress</h2>
+
+        <div class="space-y-4">
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <span class="text-gray-600">Progress</span>
+                    <span id="progressPercent" class="text-gray-800">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="progressStatus" class="text-sm text-gray-600">
+                Uploading file...
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-800">File Preview</h3>
+                <button id="closePreview" class="text-gray-500 hover:text-gray-700">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-auto max-h-[60vh]">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead id="previewHeader" class="bg-gray-50"></thead>
+                    <tbody id="previewBody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                <p id="previewInfo" class="text-sm text-gray-600"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const previewBtn = document.getElementById('previewBtn');
+
+    let selectedFile = null;
+
+    // Click to upload
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    // File input change
+    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+    // Drag and drop
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-blue-500', 'bg-blue-50');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+        handleFile(e.dataTransfer.files[0]);
+    });
+
+    function handleFile(file) {
+        if (!file) return;
+
+        const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                          'application/vnd.ms-excel', 'application/json'];
+        const validExtensions = ['.csv', '.xlsx', '.xls', '.json'];
+
+        const hasValidExtension = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+
+        if (!hasValidExtension) {
+            showToast('Please select a valid file type (CSV, Excel, or JSON)', 'error');
+            return;
+        }
+
+        if (file.size > 100 * 1024 * 1024) {
+            showToast('File size exceeds 100MB limit', 'error');
+            return;
+        }
+
+        selectedFile = file;
+
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = formatFileSize(file.size);
+
+        dropZone.classList.add('hidden');
+        fileInfo.classList.remove('hidden');
+        uploadBtn.disabled = false;
+        previewBtn.disabled = false;
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // Remove file
+    document.getElementById('removeFile').addEventListener('click', () => {
+        selectedFile = null;
+        fileInput.value = '';
+        dropZone.classList.remove('hidden');
+        fileInfo.classList.add('hidden');
+        uploadBtn.disabled = true;
+        previewBtn.disabled = true;
+    });
+
+    // Preview
+    previewBtn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        try {
+            const response = await fetch('/api/data/preview', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + getToken()
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showPreview(data);
+            } else {
+                showToast(data.detail || 'Preview failed', 'error');
+            }
+        } catch (err) {
+            showToast('Network error', 'error');
+        }
+    });
+
+    function showPreview(data) {
+        const modal = document.getElementById('previewModal');
+        const header = document.getElementById('previewHeader');
+        const body = document.getElementById('previewBody');
+        const info = document.getElementById('previewInfo');
+
+        // Build header
+        header.innerHTML = '<tr>' + data.headers.map(h =>
+            `<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">${h}</th>`
+        ).join('') + '</tr>';
+
+        // Build body
+        body.innerHTML = data.rows.map(row =>
+            '<tr>' + data.headers.map(h =>
+                `<td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900">${row[h] ?? ''}</td>`
+            ).join('') + '</tr>'
+        ).join('');
+
+        info.textContent = `Showing first ${data.rows.length} of ${data.total_rows} rows`;
+
+        modal.classList.remove('hidden');
+    }
+
+    document.getElementById('closePreview').addEventListener('click', () => {
+        document.getElementById('previewModal').classList.add('hidden');
+    });
+
+    // Upload form
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        if (!selectedFile) return;
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('data_type', document.getElementById('dataType').value);
+        formData.append('validate_only', document.getElementById('validateOnly').checked);
+        formData.append('skip_duplicates', document.getElementById('skipDuplicates').checked);
+
+        // Show progress
+        document.getElementById('progressSection').classList.remove('hidden');
+        document.getElementById('uploadBtnText').textContent = 'Uploading...';
+        document.getElementById('uploadSpinner').classList.remove('hidden');
+        uploadBtn.disabled = true;
+
+        try {
+            const response = await fetch('/api/data/upload', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + getToken()
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast('File uploaded successfully!', 'success');
+                document.getElementById('progressStatus').textContent = 'Processing started...';
+
+                // Poll for progress
+                if (data.task_id) {
+                    pollProgress(data.task_id);
+                } else {
+                    window.location.href = '/files';
+                }
+            } else {
+                showToast(data.detail || 'Upload failed', 'error');
+                resetUploadForm();
+            }
+        } catch (err) {
+            showToast('Network error', 'error');
+            resetUploadForm();
+        }
+    });
+
+    async function pollProgress(taskId) {
+        const response = await fetch(`/api/jobs/${taskId}/status`, {
+            headers: { 'Authorization': 'Bearer ' + getToken() }
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'PROGRESS') {
+            const progress = data.progress || 0;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressPercent').textContent = progress + '%';
+            document.getElementById('progressStatus').textContent =
+                `Processing... ${data.rows_processed || 0} rows processed`;
+
+            setTimeout(() => pollProgress(taskId), 2000);
+        } else if (data.status === 'SUCCESS') {
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressPercent').textContent = '100%';
+            document.getElementById('progressStatus').textContent = 'Completed!';
+            showToast('File processed successfully!', 'success');
+
+            setTimeout(() => window.location.href = '/files', 1500);
+        } else if (data.status === 'FAILURE') {
+            showToast('Processing failed: ' + (data.error || 'Unknown error'), 'error');
+            resetUploadForm();
+        } else {
+            setTimeout(() => pollProgress(taskId), 2000);
+        }
+    }
+
+    function resetUploadForm() {
+        document.getElementById('progressSection').classList.add('hidden');
+        document.getElementById('uploadBtnText').textContent = 'Upload & Process';
+        document.getElementById('uploadSpinner').classList.add('hidden');
+        uploadBtn.disabled = false;
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressPercent').textContent = '0%';
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # Oracle Database XE 21c
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    container_name: dataops-oracle
+    environment:
+      - ORACLE_PASSWORD=OraclePass123
+      - APP_USER=dataops
+      - APP_USER_PASSWORD=dataops123
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+      - ./docker/oracle/init:/container-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks:
+      - dataops-net
+
+  # Redis for Celery queue and caching
+  redis:
+    image: redis:7-alpine
+    container_name: dataops-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dataops-net
+
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: dataops-api
+    environment:
+      - ENV=development
+      - DEBUG=true
+      - DATABASE_URL=oracle+oracledb://dataops:dataops123@oracle:1521/?service_name=XEPDB1
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-change-in-prod-abc123xyz
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - ./uploads:/app/uploads
+    depends_on:
+      oracle:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - dataops-net
+
+  # Celery Worker
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    container_name: dataops-worker
+    environment:
+      - ENV=development
+      - DATABASE_URL=oracle+oracledb://dataops:dataops123@oracle:1521/?service_name=XEPDB1
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./src:/app/src
+      - ./uploads:/app/uploads
+    depends_on:
+      oracle:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A src.workers.celery_app worker --loglevel=info
+    networks:
+      - dataops-net
+
+  # Celery Beat Scheduler
+  beat:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    container_name: dataops-beat
+    environment:
+      - ENV=development
+      - DATABASE_URL=oracle+oracledb://dataops:dataops123@oracle:1521/?service_name=XEPDB1
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - worker
+    command: celery -A src.workers.celery_app beat --loglevel=info
+    networks:
+      - dataops-net
+
+volumes:
+  oracle_data:
+  redis_data:
+
+networks:
+  dataops-net:
+    driver: bridge

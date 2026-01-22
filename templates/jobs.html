@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">Background Jobs</h1>
+        <div class="flex space-x-2">
+            <button id="refreshJobs"
+                    class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200">
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-lg shadow p-4">
+            <p class="text-sm font-medium text-gray-500">Running</p>
+            <p id="runningCount" class="text-2xl font-semibold text-blue-600">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <p class="text-sm font-medium text-gray-500">Queued</p>
+            <p id="queuedCount" class="text-2xl font-semibold text-yellow-600">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <p class="text-sm font-medium text-gray-500">Completed (24h)</p>
+            <p id="completedCount" class="text-2xl font-semibold text-green-600">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <p class="text-sm font-medium text-gray-500">Failed (24h)</p>
+            <p id="failedCount" class="text-2xl font-semibold text-red-600">-</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex flex-wrap gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select id="filterStatus"
+                        class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                    <option value="">All</option>
+                    <option value="pending">Pending</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select id="filterType"
+                        class="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                    <option value="">All Types</option>
+                    <option value="etl">ETL Processing</option>
+                    <option value="report">Report Generation</option>
+                    <option value="cleanup">Cleanup</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button id="applyFilters"
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200">
+                    Apply
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jobs Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Job</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="jobsTableBody" class="bg-white divide-y divide-gray-200">
+                <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">Loading jobs...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex justify-between items-center">
+        <div id="pageInfo" class="text-sm text-gray-600"></div>
+        <div class="flex space-x-2">
+            <button id="prevPage" class="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-50" disabled>Previous</button>
+            <button id="nextPage" class="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-50" disabled>Next</button>
+        </div>
+    </div>
+</div>
+
+<!-- Job Details Modal -->
+<div id="jobModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+        <div class="px-6 py-4 border-b flex justify-between items-center">
+            <h3 class="text-lg font-semibold text-gray-800">Job Details</h3>
+            <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="jobDetails" class="p-6 overflow-auto max-h-[60vh]"></div>
+    </div>
+</div>
+
+<script>
+    let currentPage = 1;
+    const pageSize = 20;
+    let totalJobs = 0;
+    let refreshInterval;
+
+    // Initial load
+    loadStats();
+    loadJobs();
+
+    // Auto-refresh every 10 seconds
+    refreshInterval = setInterval(() => {
+        loadStats();
+        loadJobs();
+    }, 10000);
+
+    document.getElementById('refreshJobs').addEventListener('click', () => {
+        loadStats();
+        loadJobs();
+    });
+
+    document.getElementById('applyFilters').addEventListener('click', () => {
+        currentPage = 1;
+        loadJobs();
+    });
+
+    document.getElementById('prevPage').addEventListener('click', () => {
+        if (currentPage > 1) { currentPage--; loadJobs(); }
+    });
+
+    document.getElementById('nextPage').addEventListener('click', () => {
+        if (currentPage * pageSize < totalJobs) { currentPage++; loadJobs(); }
+    });
+
+    async function loadStats() {
+        try {
+            const response = await fetch('/api/jobs/stats', {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            const data = await response.json();
+
+            document.getElementById('runningCount').textContent = data.running || 0;
+            document.getElementById('queuedCount').textContent = data.queued || 0;
+            document.getElementById('completedCount').textContent = data.completed_24h || 0;
+            document.getElementById('failedCount').textContent = data.failed_24h || 0;
+        } catch (err) {
+            console.error('Failed to load stats:', err);
+        }
+    }
+
+    async function loadJobs() {
+        const status = document.getElementById('filterStatus').value;
+        const type = document.getElementById('filterType').value;
+
+        const params = new URLSearchParams({ page: currentPage, limit: pageSize });
+        if (status) params.append('status', status);
+        if (type) params.append('job_type', type);
+
+        try {
+            const response = await fetch(`/api/jobs?${params}`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            const data = await response.json();
+
+            renderJobs(data.items);
+            totalJobs = data.total;
+            updatePagination();
+        } catch (err) {
+            showToast('Failed to load jobs', 'error');
+        }
+    }
+
+    function renderJobs(jobs) {
+        const tbody = document.getElementById('jobsTableBody');
+
+        if (jobs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500">No jobs found</td></tr>';
+            return;
+        }
+
+        const statusColors = {
+            'pending': 'bg-gray-100 text-gray-800',
+            'running': 'bg-blue-100 text-blue-800',
+            'completed': 'bg-green-100 text-green-800',
+            'failed': 'bg-red-100 text-red-800',
+            'cancelled': 'bg-yellow-100 text-yellow-800'
+        };
+
+        tbody.innerHTML = jobs.map(job => {
+            const duration = job.completed_at && job.started_at
+                ? formatDuration(new Date(job.completed_at) - new Date(job.started_at))
+                : job.started_at
+                    ? formatDuration(new Date() - new Date(job.started_at))
+                    : '-';
+
+            return `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                        <p class="font-medium text-gray-900">${job.job_name}</p>
+                        <p class="text-sm text-gray-500">ID: ${job.id}</p>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${job.job_type}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${statusColors[job.status]}">${job.status}</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        ${job.status === 'running' ? `
+                            <div class="w-24">
+                                <div class="bg-gray-200 rounded-full h-2">
+                                    <div class="bg-blue-600 h-2 rounded-full" style="width: ${job.progress || 0}%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">${job.progress || 0}%</p>
+                            </div>
+                        ` : '-'}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        ${job.started_at ? new Date(job.started_at).toLocaleString() : 'Not started'}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${duration}</td>
+                    <td class="px-6 py-4 text-sm">
+                        <button onclick="showJobDetails(${job.id})" class="text-blue-600 hover:text-blue-800 mr-2">Details</button>
+                        ${job.status === 'running' ? `
+                            <button onclick="cancelJob(${job.id})" class="text-red-600 hover:text-red-800">Cancel</button>
+                        ` : ''}
+                        ${job.status === 'failed' ? `
+                            <button onclick="retryJob(${job.id})" class="text-yellow-600 hover:text-yellow-800">Retry</button>
+                        ` : ''}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function formatDuration(ms) {
+        const seconds = Math.floor(ms / 1000);
+        if (seconds < 60) return `${seconds}s`;
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+        const hours = Math.floor(minutes / 60);
+        return `${hours}h ${minutes % 60}m`;
+    }
+
+    function updatePagination() {
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, totalJobs);
+        document.getElementById('pageInfo').textContent = totalJobs > 0 ? `Showing ${start}-${end} of ${totalJobs}` : 'No jobs';
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage * pageSize >= totalJobs;
+    }
+
+    async function showJobDetails(jobId) {
+        try {
+            const response = await fetch(`/api/jobs/${jobId}`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            const job = await response.json();
+
+            document.getElementById('jobDetails').innerHTML = `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><p class="text-sm text-gray-500">Name</p><p class="font-medium">${job.job_name}</p></div>
+                        <div><p class="text-sm text-gray-500">Type</p><p class="font-medium">${job.job_type}</p></div>
+                        <div><p class="text-sm text-gray-500">Status</p><p class="font-medium">${job.status}</p></div>
+                        <div><p class="text-sm text-gray-500">Started By</p><p class="font-medium">${job.started_by || 'System'}</p></div>
+                    </div>
+                    ${job.parameters ? `
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">Parameters</p>
+                            <pre class="bg-gray-100 p-3 rounded text-sm overflow-x-auto">${JSON.stringify(JSON.parse(job.parameters), null, 2)}</pre>
+                        </div>
+                    ` : ''}
+                    ${job.result ? `
+                        <div>
+                            <p class="text-sm text-gray-500 mb-1">Result</p>
+                            <pre class="bg-gray-100 p-3 rounded text-sm overflow-x-auto">${JSON.stringify(JSON.parse(job.result), null, 2)}</pre>
+                        </div>
+                    ` : ''}
+                    ${job.error_message ? `
+                        <div class="p-4 bg-red-50 rounded">
+                            <p class="text-sm font-medium text-red-800">Error</p>
+                            <p class="text-sm text-red-700">${job.error_message}</p>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            document.getElementById('jobModal').classList.remove('hidden');
+        } catch (err) {
+            showToast('Failed to load job details', 'error');
+        }
+    }
+
+    document.getElementById('closeModal').addEventListener('click', () => {
+        document.getElementById('jobModal').classList.add('hidden');
+    });
+
+    async function cancelJob(jobId) {
+        if (!confirm('Cancel this job?')) return;
+        try {
+            await fetch(`/api/jobs/${jobId}/cancel`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            showToast('Job cancelled', 'success');
+            loadJobs();
+        } catch (err) {
+            showToast('Failed to cancel job', 'error');
+        }
+    }
+
+    async function retryJob(jobId) {
+        try {
+            await fetch(`/api/jobs/${jobId}/retry`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            showToast('Job queued for retry', 'success');
+            loadJobs();
+        } catch (err) {
+            showToast('Failed to retry job', 'error');
+        }
+    }
+</script>
+{% endblock %}

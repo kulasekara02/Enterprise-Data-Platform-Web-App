@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Page Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <span class="text-sm text-gray-500">Last updated: <span id="lastUpdate">-</span></span>
+    </div>
+
+    <!-- Stats Cards -->
+    <div id="stats-cards"
+         hx-get="/api/dashboard/stats"
+         hx-trigger="load, every 30s"
+         hx-swap="innerHTML"
+         class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Loading placeholder -->
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+        <div class="animate-pulse bg-gray-200 rounded-lg h-32"></div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Upload Trend Chart -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Upload Trend (Last 7 Days)</h2>
+            <canvas id="uploadChart" height="200"></canvas>
+        </div>
+
+        <!-- Error Distribution -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Error Distribution</h2>
+            <canvas id="errorChart" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Recent Files Table -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">Recent Files</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rows</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Uploaded</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-files" class="bg-white divide-y divide-gray-200"
+                       hx-get="/api/data/files?limit=10"
+                       hx-trigger="load"
+                       hx-swap="innerHTML">
+                    <tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // Update timestamp
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+    // Handle stats response
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'stats-cards') {
+            const data = JSON.parse(evt.detail.xhr.responseText);
+            renderStatsCards(data);
+        }
+        if (evt.detail.target.id === 'recent-files') {
+            const data = JSON.parse(evt.detail.xhr.responseText);
+            renderFilesTable(data.items || []);
+        }
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+    });
+
+    function renderStatsCards(data) {
+        const html = `
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Total Files</p>
+                        <p class="text-2xl font-semibold text-gray-800">${data.files.total}</p>
+                        <p class="text-sm text-green-600">+${data.files.today} today</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-green-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Customers</p>
+                        <p class="text-2xl font-semibold text-gray-800">${data.records.customers.toLocaleString()}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-red-100 text-red-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Errors</p>
+                        <p class="text-2xl font-semibold text-gray-800">${data.errors.total}</p>
+                        <p class="text-sm text-red-600">+${data.errors.today} today</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Running Jobs</p>
+                        <p class="text-2xl font-semibold text-gray-800">${data.jobs.running}</p>
+                        <p class="text-sm text-gray-600">${data.jobs.queued} queued</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.getElementById('stats-cards').innerHTML = html;
+    }
+
+    function renderFilesTable(files) {
+        if (!files.length) {
+            document.getElementById('recent-files').innerHTML =
+                '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No files yet</td></tr>';
+            return;
+        }
+
+        const statusColors = {
+            'uploaded': 'bg-gray-100 text-gray-800',
+            'processing': 'bg-yellow-100 text-yellow-800',
+            'completed': 'bg-green-100 text-green-800',
+            'failed': 'bg-red-100 text-red-800'
+        };
+
+        const html = files.map(file => `
+            <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${file.original_name}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${file.file_type.toUpperCase()}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full ${statusColors[file.status]}">${file.status}</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${file.row_count || '-'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(file.uploaded_at).toLocaleString()}</td>
+            </tr>
+        `).join('');
+
+        document.getElementById('recent-files').innerHTML = html;
+    }
+
+    // Initialize charts
+    const uploadCtx = document.getElementById('uploadChart').getContext('2d');
+    new Chart(uploadCtx, {
+        type: 'line',
+        data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [{
+                label: 'Files Uploaded',
+                data: [12, 19, 15, 25, 22, 8, 15],
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    const errorCtx = document.getElementById('errorChart').getContext('2d');
+    new Chart(errorCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Format', 'Required', 'Duplicate', 'Range'],
+            datasets: [{
+                data: [45, 30, 15, 10],
+                backgroundColor: ['#EF4444', '#F59E0B', '#8B5CF6', '#10B981']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+</script>
+{% endblock %}

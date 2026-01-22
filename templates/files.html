@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-800">Data Files</h1>
+        <a href="/upload"
+           class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">
+            Upload New File
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex flex-wrap gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select id="filterStatus"
+                        class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">All Statuses</option>
+                    <option value="uploaded">Uploaded</option>
+                    <option value="processing">Processing</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">File Type</label>
+                <select id="filterType"
+                        class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">All Types</option>
+                    <option value="csv">CSV</option>
+                    <option value="xlsx">Excel</option>
+                    <option value="json">JSON</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <input type="text" id="searchInput" placeholder="Search files..."
+                       class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div class="flex items-end">
+                <button id="applyFilters"
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200">
+                    Apply Filters
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Files Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rows</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="filesTableBody" class="bg-white divide-y divide-gray-200">
+                <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                        <div class="animate-pulse">Loading files...</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="flex justify-between items-center">
+        <div id="pageInfo" class="text-sm text-gray-600"></div>
+        <div class="flex space-x-2">
+            <button id="prevPage"
+                    class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                    disabled>
+                Previous
+            </button>
+            <button id="nextPage"
+                    class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50"
+                    disabled>
+                Next
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- File Details Modal -->
+<div id="detailsModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 class="text-lg font-semibold text-gray-800">File Details</h3>
+            <button id="closeDetails" class="text-gray-500 hover:text-gray-700">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="detailsContent" class="p-6">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentPage = 1;
+    const pageSize = 20;
+    let totalFiles = 0;
+
+    // Load files on page load
+    loadFiles();
+
+    // Filter handlers
+    document.getElementById('applyFilters').addEventListener('click', () => {
+        currentPage = 1;
+        loadFiles();
+    });
+
+    document.getElementById('searchInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            currentPage = 1;
+            loadFiles();
+        }
+    });
+
+    // Pagination
+    document.getElementById('prevPage').addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            loadFiles();
+        }
+    });
+
+    document.getElementById('nextPage').addEventListener('click', () => {
+        if (currentPage * pageSize < totalFiles) {
+            currentPage++;
+            loadFiles();
+        }
+    });
+
+    async function loadFiles() {
+        const status = document.getElementById('filterStatus').value;
+        const type = document.getElementById('filterType').value;
+        const search = document.getElementById('searchInput').value;
+
+        const params = new URLSearchParams({
+            page: currentPage,
+            limit: pageSize
+        });
+
+        if (status) params.append('status', status);
+        if (type) params.append('file_type', type);
+        if (search) params.append('search', search);
+
+        try {
+            const response = await fetch(`/api/data/files?${params}`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                renderFiles(data.items);
+                totalFiles = data.total;
+                updatePagination();
+            } else {
+                showToast('Failed to load files', 'error');
+            }
+        } catch (err) {
+            showToast('Network error', 'error');
+        }
+    }
+
+    function renderFiles(files) {
+        const tbody = document.getElementById('filesTableBody');
+
+        if (files.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                        No files found. <a href="/upload" class="text-blue-600 hover:underline">Upload a file</a>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        const statusColors = {
+            'uploaded': 'bg-gray-100 text-gray-800',
+            'processing': 'bg-yellow-100 text-yellow-800',
+            'completed': 'bg-green-100 text-green-800',
+            'failed': 'bg-red-100 text-red-800'
+        };
+
+        tbody.innerHTML = files.map(file => `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">
+                    <div class="flex items-center">
+                        <svg class="h-8 w-8 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-gray-900">${file.original_name}</p>
+                            <p class="text-sm text-gray-500">${file.filename}</p>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="text-sm text-gray-900">${file.file_type.toUpperCase()}</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full ${statusColors[file.status]}">${file.status}</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${file.row_count ? file.row_count.toLocaleString() : '-'}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${formatFileSize(file.file_size)}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    ${new Date(file.uploaded_at).toLocaleString()}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <button onclick="showDetails(${file.id})"
+                            class="text-blue-600 hover:text-blue-800 mr-3">Details</button>
+                    ${file.status === 'failed' ? `
+                        <button onclick="reprocessFile(${file.id})"
+                                class="text-yellow-600 hover:text-yellow-800 mr-3">Retry</button>
+                    ` : ''}
+                    <button onclick="deleteFile(${file.id})"
+                            class="text-red-600 hover:text-red-800">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function updatePagination() {
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, totalFiles);
+
+        document.getElementById('pageInfo').textContent =
+            totalFiles > 0 ? `Showing ${start}-${end} of ${totalFiles} files` : 'No files';
+
+        document.getElementById('prevPage').disabled = currentPage === 1;
+        document.getElementById('nextPage').disabled = currentPage * pageSize >= totalFiles;
+    }
+
+    async function showDetails(fileId) {
+        try {
+            const response = await fetch(`/api/data/files/${fileId}`, {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+
+            const file = await response.json();
+
+            const content = document.getElementById('detailsContent');
+            content.innerHTML = `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Original Name</p>
+                            <p class="text-gray-900">${file.original_name}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Status</p>
+                            <p class="text-gray-900">${file.status}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">File Type</p>
+                            <p class="text-gray-900">${file.file_type.toUpperCase()}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">File Size</p>
+                            <p class="text-gray-900">${formatFileSize(file.file_size)}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Row Count</p>
+                            <p class="text-gray-900">${file.row_count ? file.row_count.toLocaleString() : 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Uploaded At</p>
+                            <p class="text-gray-900">${new Date(file.uploaded_at).toLocaleString()}</p>
+                        </div>
+                    </div>
+                    ${file.error_message ? `
+                        <div class="mt-4 p-4 bg-red-50 rounded-md">
+                            <p class="text-sm font-medium text-red-800">Error</p>
+                            <p class="text-sm text-red-700">${file.error_message}</p>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            document.getElementById('detailsModal').classList.remove('hidden');
+        } catch (err) {
+            showToast('Failed to load file details', 'error');
+        }
+    }
+
+    document.getElementById('closeDetails').addEventListener('click', () => {
+        document.getElementById('detailsModal').classList.add('hidden');
+    });
+
+    async function reprocessFile(fileId) {
+        if (!confirm('Reprocess this file?')) return;
+
+        try {
+            const response = await fetch(`/api/data/files/${fileId}/reprocess`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+
+            if (response.ok) {
+                showToast('File queued for reprocessing', 'success');
+                loadFiles();
+            } else {
+                showToast('Failed to reprocess file', 'error');
+            }
+        } catch (err) {
+            showToast('Network error', 'error');
+        }
+    }
+
+    async function deleteFile(fileId) {
+        if (!confirm('Are you sure you want to delete this file?')) return;
+
+        try {
+            const response = await fetch(`/api/data/files/${fileId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+
+            if (response.ok) {
+                showToast('File deleted', 'success');
+                loadFiles();
+            } else {
+                showToast('Failed to delete file', 'error');
+            }
+        } catch (err) {
+            showToast('Network error', 'error');
+        }
+    }
+</script>
+{% endblock %}
